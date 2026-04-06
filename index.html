@@ -1,0 +1,369 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  LayoutDashboard, 
+  UserCircle, 
+  FileText, 
+  LogOut, 
+  Save, 
+  Search, 
+  GraduationCap,
+  ClipboardCheck,
+  AlertCircle
+} from 'lucide-react';
+
+// --- KONFIGURASI ---
+// Masukkan URL dari Google Apps Script Deployment di sini
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxlarr7HSUXCQeMWYvjW7lCnF89hRTjpOQV78UNynav3vfQXJBbtvwXqQ0fc4iW4MOn/exec"; 
+
+const KONSENTRASI_OPTIONS = [
+  "AKUNTANSI",
+  "LAYANAN PERBANKAN",
+  "DESAIN KOMUNIKASI VISUAL",
+  "TEKNIK KOMPUTER DAN JARINGAN",
+  "REKAYASA PERANGKAT LUNAK",
+  "TEKNIK MEKATRONIKA"
+];
+
+const TUJUAN_PEMBELAJARAN = [
+  "Menerapkan soft skills yang dibutuhkan dalam dunia kerja",
+  "Menerapkan norma, POS dan K3LH",
+  "Menerapkan kompetensi teknis",
+  "Memahami alur bisnis dunia kerja"
+];
+
+const App = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginData, setLoginData] = useState({ username: '', password: '' });
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('input');
+  
+  const [selectedKeahlian, setSelectedKeahlian] = useState('');
+  const [selectedSiswa, setSelectedSiswa] = useState(null);
+  const [kehadiran, setKehadiran] = useState({ s: 0, i: 0, a: 0 });
+  const [nilaiIndustri, setNilaiIndustri] = useState([0, 0, 0, 0]);
+  const [nilaiSekolah, setNilaiSekolah] = useState([0, 0, 0, 0]);
+  const [savedData, setSavedData] = useState([]);
+
+  // Data Siswa Mockup (Berdasarkan CSV yang Anda berikan)
+  const rawStudentData = [
+    { nama: "SETYO BAYU MAHENDRA", rombel: "XII TM", nisn: "0084056662" },
+    { nama: "SYELLO IZAHQI PUTRA MAULANA", rombel: "XII TM", nisn: "0079064170" },
+    { nama: "AHMAD DANI", rombel: "XII TKJ 1", nisn: "0081234567" },
+    { nama: "SITI AMINAH", rombel: "XII AK", nisn: "0082233445" }
+  ];
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      setIsLoggedIn(true);
+      setLoading(false);
+    }, 800);
+  };
+
+  const hitungNilaiAkhir = (idx) => {
+    const industri = nilaiIndustri[idx] || 0;
+    const sekolah = nilaiSekolah[idx] || 0;
+    return (industri * 0.8) + (sekolah * 0.2);
+  };
+
+  const getRataRata = () => {
+    const total = TUJUAN_PEMBELAJARAN.reduce((acc, _, idx) => acc + hitungNilaiAkhir(idx), 0);
+    return total / 4;
+  };
+
+  const generateCatatan = () => {
+    if (!selectedSiswa) return "";
+    const rataRata = getRataRata();
+    let predikat = rataRata >= 90 ? "Sangat Baik" : rataRata >= 80 ? "Baik" : "Cukup";
+    return `Ananda ${selectedSiswa.nama} telah menunjukkan performa ${predikat} selama masa PKL. Kompetensi teknis dan soft skills yang ditunjukkan sangat mendukung kebutuhan industri.`;
+  };
+
+  const handleSave = async () => {
+    if (!WEB_APP_URL) {
+      alert("Silakan masukkan WEB_APP_URL dari Google Apps Script di kode source terlebih dahulu.");
+      return;
+    }
+
+    setLoading(true);
+    const payload = {
+      siswa: selectedSiswa.nama,
+      nisn: selectedSiswa.nisn,
+      kelas: selectedSiswa.rombel,
+      konsentrasi: selectedKeahlian,
+      kehadiran,
+      nilai: nilaiIndustri.map((_, i) => hitungNilaiAkhir(i)),
+      rataRata: getRataRata(),
+      catatan: generateCatatan()
+    };
+
+    try {
+      // Mengirim data ke Google Apps Script via POST
+      // Catatan: Menggunakan 'no-cors' jika menghadapi masalah CORS, 
+      // tapi idealnya menggunakan fetch standar ke Web App Google.
+      const response = await fetch(WEB_APP_URL, {
+        method: "POST",
+        mode: "no-cors", 
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      setSavedData([payload, ...savedData]);
+      alert("Data berhasil dikirim ke Google Sheets!");
+      
+      // Reset form
+      setNilaiIndustri([0,0,0,0]);
+      setNilaiSekolah([0,0,0,0]);
+      setKehadiran({ s: 0, i: 0, a: 0 });
+    } catch (err) {
+      console.error("Error saving:", err);
+      alert("Gagal menyimpan data. Periksa koneksi atau URL Script.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
+          <div className="bg-blue-600 p-10 text-center text-white">
+            <GraduationCap className="mx-auto w-16 h-16 mb-4" />
+            <h1 className="text-3xl font-extrabold tracking-tight">E-RAPOR PKL</h1>
+            <p className="opacity-80 text-sm mt-2">SMK Antartika 2 Sidoarjo</p>
+          </div>
+          <form onSubmit={handleLogin} className="p-8 space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 ml-1 uppercase tracking-wide">Username</label>
+              <div className="relative">
+                <UserCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input type="text" required placeholder="NIP / Kode Guru" className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 ml-1 uppercase tracking-wide">Password</label>
+              <div className="relative">
+                <ClipboardCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input type="password" required placeholder="••••••••" className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+              </div>
+            </div>
+            <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all active:scale-[0.98]">
+              {loading ? "Memverifikasi..." : "MASUK DASHBOARD"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans">
+      {/* Sidebar */}
+      <nav className="w-full md:w-64 bg-white border-r border-slate-200 p-6 flex flex-col gap-8">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-xl">
+            <GraduationCap className="text-white w-6 h-6" />
+          </div>
+          <span className="font-black text-slate-800 tracking-tighter text-xl">RAPOR PKL</span>
+        </div>
+        
+        <div className="space-y-2">
+          <button onClick={() => setActiveTab('input')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold ${activeTab === 'input' ? 'bg-blue-600 text-white shadow-md shadow-blue-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+            <LayoutDashboard size={20} /> Input Nilai
+          </button>
+          <button onClick={() => setActiveTab('rekap')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold ${activeTab === 'rekap' ? 'bg-blue-600 text-white shadow-md shadow-blue-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+            <FileText size={20} /> Rekapitulasi
+          </button>
+        </div>
+
+        <button onClick={() => setIsLoggedIn(false)} className="mt-auto flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 font-bold transition-all">
+          <LogOut size={20} /> Keluar
+        </button>
+      </nav>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        <header className="bg-white border-b border-slate-200 p-6 flex justify-between items-center sticky top-0 z-10">
+          <div>
+            <h2 className="text-2xl font-black text-slate-800">4 Mei 2026</h2>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Tahun Ajaran 2025/2026</p>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-xs font-black text-slate-800 uppercase">Wali Kelas AK</p>
+              <p className="text-[10px] text-slate-500">Administrator</p>
+            </div>
+            <UserCircle className="text-slate-400 w-8 h-8" />
+          </div>
+        </header>
+
+        <div className="p-6 md:p-10 max-w-5xl mx-auto space-y-8">
+          {activeTab === 'input' ? (
+            <>
+              {/* Form Seleksi */}
+              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Konsentrasi Keahlian</label>
+                  <select 
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    value={selectedKeahlian}
+                    onChange={(e) => {
+                      setSelectedKeahlian(e.target.value);
+                      setSelectedSiswa(null);
+                    }}
+                  >
+                    <option value="">-- Pilih Jurusan --</option>
+                    {KONSENTRASI_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Siswa</label>
+                  <select 
+                    disabled={!selectedKeahlian}
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    onChange={(e) => setSelectedSiswa(JSON.parse(e.target.value))}
+                  >
+                    <option value="">-- Cari Nama --</option>
+                    {rawStudentData.map((s, i) => (
+                      <option key={i} value={JSON.stringify(s)}>{s.nama} ({s.rombel})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {selectedSiswa && (
+                <div className="space-y-8 animate-in fade-in duration-500">
+                  {/* Row: Kehadiran */}
+                  <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div>
+                      <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Presensi PKL</h4>
+                      <p className="text-slate-400 text-xs">Input jumlah hari absen selama periode PKL</p>
+                    </div>
+                    <div className="flex gap-4">
+                      {['s', 'i', 'a'].map(key => (
+                        <div key={key} className="text-center">
+                          <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">{key === 's' ? 'Sakit' : key === 'i' ? 'Izin' : 'Alfa'}</label>
+                          <input 
+                            type="number" min="0" max="10"
+                            className="w-16 p-3 text-center bg-slate-50 border border-slate-200 rounded-xl font-bold text-xl text-blue-600 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                            value={kehadiran[key]}
+                            onChange={(e) => setKehadiran({...kehadiran, [key]: e.target.value})}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Row: Tabel Nilai */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-8 border-b border-slate-100 flex justify-between items-end">
+                      <div>
+                        <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Capaian Kompetensi</h4>
+                        <p className="text-slate-400 text-xs">Bobot: 80% Industri | 20% Sekolah</p>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          <tr>
+                            <th className="px-8 py-4">Tujuan Pembelajaran</th>
+                            <th className="px-8 py-4 text-center w-32">Industri</th>
+                            <th className="px-8 py-4 text-center w-32">Wali Kelas</th>
+                            <th className="px-8 py-4 text-center w-24 text-blue-600">NA</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {TUJUAN_PEMBELAJARAN.map((tp, idx) => (
+                            <tr key={idx}>
+                              <td className="px-8 py-6 text-sm font-bold text-slate-600 max-w-xs leading-relaxed">{tp}</td>
+                              <td className="px-8 py-6">
+                                <input type="number" className="w-full p-3 bg-slate-50 rounded-xl text-center font-bold outline-none border border-slate-100" value={nilaiIndustri[idx]} onChange={(e) => {
+                                  const n = [...nilaiIndustri]; n[idx] = parseFloat(e.target.value) || 0; setNilaiIndustri(n);
+                                }} />
+                              </td>
+                              <td className="px-8 py-6">
+                                <input type="number" className="w-full p-3 bg-slate-50 rounded-xl text-center font-bold outline-none border border-slate-100" value={nilaiSekolah[idx]} onChange={(e) => {
+                                  const n = [...nilaiSekolah]; n[idx] = parseFloat(e.target.value) || 0; setNilaiSekolah(n);
+                                }} />
+                              </td>
+                              <td className="px-8 py-6 text-center font-black text-blue-600 text-lg">
+                                {hitungNilaiAkhir(idx).toFixed(1)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="p-8 bg-slate-50 flex justify-between items-center border-t border-slate-100">
+                      <span className="font-black text-slate-400 uppercase text-xs tracking-widest">Rerata Akhir</span>
+                      <span className="text-3xl font-black text-slate-800">{getRataRata().toFixed(1)}</span>
+                    </div>
+                  </div>
+
+                  {/* Row: Catatan & Action */}
+                  <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Deskripsi & Catatan</h4>
+                      <div className="p-6 bg-blue-50 border-l-4 border-blue-500 rounded-r-2xl italic text-slate-700 text-sm leading-relaxed">
+                        "{generateCatatan()}"
+                      </div>
+                    </div>
+                    <div className="pt-4 flex justify-end">
+                      <button 
+                        onClick={handleSave}
+                        disabled={loading}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl shadow-blue-100 transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        {loading ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" /> : <Save size={20} />}
+                        SIMPAN KE GOOGLE SHEETS
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="bg-white p-10 rounded-3xl border border-slate-200 text-center space-y-6">
+              <FileText className="w-16 h-16 text-slate-200 mx-auto" />
+              <div className="space-y-2">
+                <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Riwayat Data Tersimpan</h3>
+                <p className="text-slate-400 text-sm max-w-sm mx-auto">Daftar nilai yang baru saja Anda masukkan ke sistem Google Sheets sesi ini.</p>
+              </div>
+              
+              <div className="mt-8 border border-slate-100 rounded-2xl overflow-hidden text-left text-sm">
+                <table className="w-full">
+                  <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <tr>
+                      <th className="px-6 py-4">Siswa</th>
+                      <th className="px-6 py-4 text-center">Kelas</th>
+                      <th className="px-6 py-4 text-center">Skor</th>
+                      <th className="px-6 py-4 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {savedData.length === 0 ? (
+                      <tr><td colSpan="4" className="py-10 text-center text-slate-300 italic">Belum ada aktivitas penyimpanan</td></tr>
+                    ) : (
+                      savedData.map((d, i) => (
+                        <tr key={i} className="hover:bg-slate-50/50">
+                          <td className="px-6 py-4 font-bold text-slate-700 uppercase">{d.siswa}</td>
+                          <td className="px-6 py-4 text-center text-slate-500 font-bold">{d.kelas}</td>
+                          <td className="px-6 py-4 text-center font-black text-blue-600">{d.rataRata.toFixed(1)}</td>
+                          <td className="px-6 py-4 text-center">
+                            <span className="px-3 py-1 bg-emerald-100 text-emerald-600 text-[10px] font-black rounded-full uppercase">Synced</span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
